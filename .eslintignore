@@ -1,0 +1,13 @@
+dist
+/node_modules
+.eslintrc.cjs
+package.json
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+.vscode
+.data
+.nuxt
+.netlify
+.output
+.nitro
