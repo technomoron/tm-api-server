@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { Application, Request, Response, NextFunction, Router } from 'express';
 import jwt, { TokenExpiredError, JwtPayload } from 'jsonwebtoken';
+import multer from 'multer';
 
 // import { add_swagger_ui } from '../swagger';
 
@@ -87,6 +88,7 @@ export interface apiServerConf {
 	jwt_secret: string | null;
 	api_port: number;
 	api_host: string;
+	upload_path: string | null;
 }
 
 export class apiServer {
@@ -99,6 +101,10 @@ export class apiServer {
 		this.config = config;
 		this.router_v1 = express.Router();
 		this.app = express();
+		if (config.upload_path) {
+			const upload = multer({ dest: config.upload_path });
+			this.app.use(upload.any());
+		}
 		this.middlewares();
 		this.app.use('/api/v1', this.router_v1);
 		// add_swagger_ui(this.app);

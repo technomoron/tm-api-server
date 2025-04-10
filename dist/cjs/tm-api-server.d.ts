@@ -51,6 +51,7 @@ export interface apiServerConf {
     jwt_secret: string | null;
     api_port: number;
     api_host: string;
+    upload_path: string | null;
 }
 export declare class apiServer {
     app: Application;

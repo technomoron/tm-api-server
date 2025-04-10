@@ -1,6 +1,6 @@
 {
 	"name": "tm-api-server",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "Api Server Skeleton",
 	"main": "dist/cjs/tm-api-server.js",
 	"module": "dist/esm/tm-api-server.mjs",
@@ -23,6 +23,7 @@
 		"@types/cors": "^2.8.17",
 		"@types/express": "^5.0.1",
 		"@types/jsonwebtoken": "^9.0.9",
+		"@types/multer": "^1.4.12",
 		"@typescript-eslint/eslint-plugin": "^8.29.0",
 		"@typescript-eslint/parser": "^8.29.0",
 		"eslint": "^8.57.1",
@@ -37,8 +38,9 @@
 		"package.json"
 	],
 	"dependencies": {
-		"express": "^5.1.0",
 		"cors": "^2.8.5",
-		"jsonwebtoken": "^9.0.2"
+		"express": "^5.1.0",
+		"jsonwebtoken": "^9.0.2",
+		"multer": "^1.4.5-lts.2"
 	}
 }

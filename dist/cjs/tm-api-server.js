@@ -40,6 +40,7 @@ exports.apiServer = exports.apiError = exports.apiModule = void 0;
 const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
 const jsonwebtoken_1 = __importStar(require("jsonwebtoken"));
+const multer_1 = __importDefault(require("multer"));
 class apiModule {
     constructor() {
         this.server = null;
@@ -73,6 +74,10 @@ class apiServer {
         this.config = config;
         this.router_v1 = express_1.default.Router();
         this.app = (0, express_1.default)();
+        if (config.upload_path) {
+            const upload = (0, multer_1.default)({ dest: config.upload_path });
+            this.app.use(upload.any());
+        }
         this.middlewares();
         this.app.use('/api/v1', this.router_v1);
         // add_swagger_ui(this.app);

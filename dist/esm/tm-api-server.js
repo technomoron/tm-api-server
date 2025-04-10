@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import jwt, { TokenExpiredError } from 'jsonwebtoken';
+import multer from 'multer';
 export class apiModule {
     constructor() {
         this.server = null;
@@ -32,6 +33,10 @@ export class apiServer {
         this.config = config;
         this.router_v1 = express.Router();
         this.app = express();
+        if (config.upload_path) {
+            const upload = multer({ dest: config.upload_path });
+            this.app.use(upload.any());
+        }
         this.middlewares();
         this.app.use('/api/v1', this.router_v1);
         // add_swagger_ui(this.app);
