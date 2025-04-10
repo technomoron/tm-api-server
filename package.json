@@ -1,6 +1,6 @@
 {
 	"name": "tm-api-server",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "Api Server Skeleton",
 	"main": "dist/cjs/tm-api-server.js",
 	"module": "dist/esm/tm-api-server.mjs",
