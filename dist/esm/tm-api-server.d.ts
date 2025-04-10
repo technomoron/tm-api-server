@@ -48,10 +48,12 @@ export declare class apiError extends Error {
     });
 }
 export interface apiServerConf {
-    jwt_secret: string | null;
+    jwt_secret?: string;
     api_port: number;
     api_host: string;
-    upload_path: string | null;
+    upload_path?: string;
+    upload_max?: number;
+    origins?: string[];
 }
 export declare class apiServer {
     app: Application;

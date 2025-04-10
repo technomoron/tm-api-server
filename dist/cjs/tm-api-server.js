@@ -71,6 +71,10 @@ exports.apiError = apiError;
 class apiServer {
     constructor(config) {
         this.curreq = null;
+        config.jwt_secret || (config.jwt_secret = '');
+        config.upload_max || (config.upload_max = 30 * 1024 * 1024);
+        config.upload_path || (config.upload_path = '');
+        config.origins || (config.origins = []);
         this.config = config;
         this.router_v1 = express_1.default.Router();
         this.app = (0, express_1.default)();
@@ -88,17 +92,15 @@ class apiServer {
     async authorize(apireq, requiredClass) { }
     middlewares() {
         this.app.use(express_1.default.json());
-        // const allowedOrigins = ['http://localhost:3000', 'https://stage.xxx.no'];
         const corsOptions = {
             origin: (origin, callback) => {
-                callback(null, origin);
-                /*
-                if (!origin || allowedOrigins.includes(origin)) {
-                  callback(null, origin); // Allow the request
-                } else {
-                  callback(new Error('Not allowed by CORS'));
+                if (!origin) {
+                    return callback(null, true);
                 }
-                */
+                if (this.config.origins && this.config.origins.length > 0 && this.config.origins.includes(origin)) {
+                    return callback(null, true);
+                }
+                return callback(new Error(`${origin} Not allowed by CORS`));
             },
             credentials: true,
         };

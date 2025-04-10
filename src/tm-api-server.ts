@@ -85,10 +85,12 @@ export class apiError extends Error {
 }
 
 export interface apiServerConf {
-	jwt_secret: string | null;
+	jwt_secret?: string;
 	api_port: number;
 	api_host: string;
-	upload_path: string | null;
+	upload_path?: string;
+	upload_max?: number;
+	origins?: string[];
 }
 
 export class apiServer {
@@ -98,6 +100,11 @@ export class apiServer {
 	public readonly config: apiServerConf;
 
 	constructor(config: apiServerConf) {
+		config.jwt_secret ||= '';
+		config.upload_max ||= 30 * 1024 * 1024;
+		config.upload_path ||= '';
+		config.origins ||= [];
+
 		this.config = config;
 		this.router_v1 = express.Router();
 		this.app = express();
@@ -118,20 +125,20 @@ export class apiServer {
 
 	private middlewares() {
 		this.app.use(express.json());
-		// const allowedOrigins = ['http://localhost:3000', 'https://stage.xxx.no'];
+
 		const corsOptions = {
 			origin: (origin: any, callback: any) => {
-				callback(null, origin);
-				/*
-				if (!origin || allowedOrigins.includes(origin)) {
-				  callback(null, origin); // Allow the request
-				} else {
-				  callback(new Error('Not allowed by CORS'));
+				if (!origin) {
+					return callback(null, true);
 				}
-				*/
+				if (this.config.origins && this.config.origins.length > 0 && this.config.origins.includes(origin)) {
+					return callback(null, true);
+				}
+				return callback(new Error(`${origin} Not allowed by CORS`));
 			},
 			credentials: true,
 		};
+
 		this.app.use(cors(corsOptions));
 	}
 
