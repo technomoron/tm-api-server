@@ -8,6 +8,7 @@ export interface apiTokenData extends JwtPayload {
     exp: number;
 }
 export interface apiRequest {
+    server: any;
     req: Request;
     res: Response;
     tokendata?: apiTokenData | null;
@@ -31,21 +32,23 @@ export type apiRoute = {
 export interface IapiServer {
     add_routes(routes: apiRoute[]): void;
 }
-export declare class apiModule {
-    protected server: IapiServer | null;
-    init(server: apiServer): any;
+export declare class apiModule<T extends IapiServer = IapiServer> {
+    protected server: T | null;
+    init(server: T): this;
     protected define_routes(): apiRoute[];
+}
+export interface apiErrorParams {
+    code: number;
+    error: any;
+    data?: any;
+    errors?: Record<string, string>;
 }
 export declare class apiError extends Error {
     code: number;
+    error: string;
     data: any;
     errors: Record<string, string>;
-    constructor({ code, error, data, errors, }: {
-        code: number;
-        error: unknown;
-        data?: any;
-        errors?: Record<string, string>;
-    });
+    constructor({ code, error, data, errors }: apiErrorParams);
 }
 export interface apiServerConf {
     jwt_secret?: string;
@@ -61,11 +64,11 @@ export declare class apiServer {
     private router_v1;
     readonly config: apiServerConf;
     constructor(config: apiServerConf);
+    guess_exception_text(error: any, defmsg?: string): string;
     protected get_api_key(token: string): Promise<apiKey | null>;
     protected authorize(apireq: apiRequest, requiredClass: apiAuthClass): Promise<void>;
     private middlewares;
     start(): void;
-    exception_error(error: any): string;
     private verifyJWT;
     private authenticate;
     private handle_request;

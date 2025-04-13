@@ -1,37 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -39,8 +6,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.apiServer = exports.apiError = exports.apiModule = void 0;
 const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
-const jsonwebtoken_1 = __importStar(require("jsonwebtoken"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const multer_1 = __importDefault(require("multer"));
+const { TokenExpiredError } = jsonwebtoken_1.default;
 class apiModule {
     constructor() {
         this.server = null;
@@ -56,12 +24,46 @@ class apiModule {
 }
 exports.apiModule = apiModule;
 class apiError extends Error {
-    constructor({ code, error, data, errors, }) {
-        const message = error instanceof Error ? error.message : String(error) || '[Unknown error]';
+    constructor({ code, error, data, errors }) {
+        let message;
+        if (error === undefined || error === null) {
+            message = '[Unknown error]';
+        }
+        else if (typeof code === 'number' && typeof error === 'string') {
+            message = error;
+        }
+        else if (error && typeof error === 'object') {
+            if ('parent' in error && error.parent && typeof error.parent.message === 'string') {
+                message = error.parent.message;
+            }
+            else if ('message' in error && typeof error.message === 'string') {
+                message = error.message;
+            }
+            else if (typeof error === 'string') {
+                message = error;
+            }
+            else {
+                message = String(error) || '[Unknown error]';
+            }
+        }
+        else if (typeof error === 'string') {
+            message = error;
+        }
+        else {
+            message = String(error) || '[Unknown error]';
+        }
         super(message);
-        this.code = code;
-        this.data = data ?? null;
-        this.errors = errors ?? {};
+        this.error = message;
+        if (typeof code === 'number' && typeof error === 'string') {
+            this.code = code;
+            this.data = data !== undefined ? data : null;
+            this.errors = errors !== undefined ? errors : {};
+        }
+        else {
+            this.code = 500;
+            this.data = null;
+            this.errors = {};
+        }
         if (error instanceof Error && error.stack) {
             this.stack = error.stack;
         }
@@ -85,6 +87,24 @@ class apiServer {
         this.middlewares();
         this.app.use('/api/v1', this.router_v1);
         // add_swagger_ui(this.app);
+    }
+    guess_exception_text(error, defmsg = 'Unkown Error') {
+        const msg = [];
+        if (typeof error === 'string') {
+            msg.push(error);
+        }
+        else {
+            if (error && typeof error.message === 'string') {
+                msg.push(error.message);
+            }
+            if (error && error.parent && typeof error.parent.message === 'string') {
+                msg.push(error.parent.message);
+            }
+        }
+        if (msg.length === 0) {
+            return defmsg;
+        }
+        return msg.join('/');
     }
     async get_api_key(token) {
         return null;
@@ -111,17 +131,6 @@ class apiServer {
             console.log(`Server is running on http://${this.config.api_host}:${this.config.api_port}`);
         });
     }
-    exception_error(error) {
-        if (typeof error === 'string') {
-            return error;
-        }
-        else if (error instanceof Error) {
-            return error.message;
-        }
-        else {
-            return 'An unknown error occurred';
-        }
-    }
     async verifyJWT(token) {
         if (!this.config.jwt_secret) {
             return { tokendata: undefined, error: 'JWT authentication disabled; no jwt_secret set' };
@@ -137,11 +146,11 @@ class apiServer {
             }
         }
         catch (error) {
-            if (error instanceof jsonwebtoken_1.TokenExpiredError) {
+            if (error instanceof TokenExpiredError) {
                 return { tokendata: undefined, error: 'Refresh token expired' };
             }
             else {
-                return { tokendata: undefined, error: this.exception_error(error) + ' -> (token verification)' };
+                return { tokendata: undefined, error: this.guess_exception_text(error) + ' -> (token verification)' };
             }
         }
         return { tokendata: td, error: undefined };
@@ -208,6 +217,7 @@ class apiServer {
         return async (req, res, next) => {
             try {
                 const apireq = (this.curreq = {
+                    server: this,
                     req,
                     res,
                     token: '',
@@ -219,21 +229,18 @@ class apiServer {
                 res.status(code).json({ code, message, data });
             }
             catch (error) {
-                console.log(JSON.stringify(error, undefined, 2));
                 if (error instanceof apiError) {
                     res.status(error.code).json({
                         code: error.code,
-                        message: error.message,
+                        error: error.message,
                         data: error.data || null,
                         errors: error.errors || [],
                     });
                 }
                 else {
-                    console.log(this.exception_error(error));
                     res.status(500).json({
                         code: 500,
-                        message: 'Internal Server Error',
-                        error: this.exception_error(error),
+                        error: this.guess_exception_text(error),
                         errors: [],
                     });
                 }

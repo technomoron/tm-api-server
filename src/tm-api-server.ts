@@ -1,7 +1,9 @@
 import cors from 'cors';
 import express, { Application, Request, Response, NextFunction, Router } from 'express';
-import jwt, { TokenExpiredError, JwtPayload } from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import multer from 'multer';
+
+const { TokenExpiredError } = jwt;
 
 // import { add_swagger_ui } from '../swagger';
 
@@ -14,6 +16,7 @@ export interface apiTokenData extends JwtPayload {
 }
 
 export interface apiRequest {
+	server: any;
 	req: Request;
 	res: Response;
 	tokendata?: apiTokenData | null;
@@ -43,10 +46,10 @@ export interface IapiServer {
 	add_routes(routes: apiRoute[]): void;
 }
 
-export class apiModule {
-	protected server: IapiServer | null = null;
+export class apiModule<T extends IapiServer = IapiServer> {
+	protected server: T | null = null;
 
-	init(server: apiServer): any {
+	init(server: T): this {
 		this.server = server;
 		server.add_routes(this.define_routes());
 		return this;
@@ -57,27 +60,54 @@ export class apiModule {
 	}
 }
 
-export class apiError extends Error {
+export interface apiErrorParams {
 	code: number;
-	data: any;
-	errors: Record<string, string>;
+	error: any;
+	data?: any;
+	errors?: Record<string, string>;
+}
 
-	constructor({
-		code,
-		error,
-		data,
-		errors,
-	}: {
-		code: number;
-		error: unknown;
-		data?: any;
-		errors?: Record<string, string>;
-	}) {
-		const message = error instanceof Error ? error.message : String(error) || '[Unknown error]';
+export class apiError extends Error {
+	public code: number;
+	public error: string;
+	public data: any;
+	public errors: Record<string, string>;
+
+	constructor({ code, error, data, errors }: apiErrorParams) {
+		let message: string;
+		if (error === undefined || error === null) {
+			message = '[Unknown error]';
+		} else if (typeof code === 'number' && typeof error === 'string') {
+			message = error;
+		} else if (error && typeof error === 'object') {
+			if ('parent' in error && error.parent && typeof error.parent.message === 'string') {
+				message = error.parent.message;
+			} else if ('message' in error && typeof error.message === 'string') {
+				message = error.message;
+			} else if (typeof error === 'string') {
+				message = error;
+			} else {
+				message = String(error) || '[Unknown error]';
+			}
+		} else if (typeof error === 'string') {
+			message = error;
+		} else {
+			message = String(error) || '[Unknown error]';
+		}
+
 		super(message);
-		this.code = code;
-		this.data = data ?? null;
-		this.errors = errors ?? {};
+
+		this.error = message;
+		if (typeof code === 'number' && typeof error === 'string') {
+			this.code = code;
+			this.data = data !== undefined ? data : null;
+			this.errors = errors !== undefined ? errors : {};
+		} else {
+			this.code = 500;
+			this.data = null;
+			this.errors = {};
+		}
+
 		if (error instanceof Error && error.stack) {
 			this.stack = error.stack;
 		}
@@ -117,6 +147,25 @@ export class apiServer {
 		// add_swagger_ui(this.app);
 	}
 
+	public guess_exception_text(error: any, defmsg: string = 'Unkown Error') {
+		const msg = [];
+
+		if (typeof error === 'string') {
+			msg.push(error);
+		} else {
+			if (error && typeof error.message === 'string') {
+				msg.push(error.message);
+			}
+			if (error && error.parent && typeof error.parent.message === 'string') {
+				msg.push(error.parent.message);
+			}
+		}
+		if (msg.length === 0) {
+			return defmsg;
+		}
+		return msg.join('/');
+	}
+
 	protected async get_api_key(token: string): Promise<apiKey | null> {
 		return null;
 	}
@@ -148,16 +197,6 @@ export class apiServer {
 		});
 	}
 
-	public exception_error(error: any): string {
-		if (typeof error === 'string') {
-			return error;
-		} else if (error instanceof Error) {
-			return error.message;
-		} else {
-			return 'An unknown error occurred';
-		}
-	}
-
 	private async verifyJWT(
 		token: string
 	): Promise<{ tokendata: apiTokenData | undefined; error: string | undefined }> {
@@ -177,7 +216,7 @@ export class apiServer {
 			if (error instanceof TokenExpiredError) {
 				return { tokendata: undefined, error: 'Refresh token expired' };
 			} else {
-				return { tokendata: undefined, error: this.exception_error(error) + ' -> (token verification)' };
+				return { tokendata: undefined, error: this.guess_exception_text(error) + ' -> (token verification)' };
 			}
 		}
 		return { tokendata: td, error: undefined };
@@ -246,6 +285,7 @@ export class apiServer {
 		return async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const apireq: apiRequest = (this.curreq = {
+					server: this,
 					req,
 					res,
 					token: '',
@@ -256,20 +296,17 @@ export class apiServer {
 				const [code, data = null, message = 'Success'] = await handler(apireq);
 				res.status(code).json({ code, message, data });
 			} catch (error) {
-				console.log(JSON.stringify(error, undefined, 2));
 				if (error instanceof apiError) {
 					res.status(error.code).json({
 						code: error.code,
-						message: error.message,
+						error: error.message,
 						data: error.data || null,
 						errors: error.errors || [],
 					});
 				} else {
-					console.log(this.exception_error(error));
 					res.status(500).json({
 						code: 500,
-						message: 'Internal Server Error',
-						error: this.exception_error(error),
+						error: this.guess_exception_text(error),
 						errors: [],
 					});
 				}

@@ -1,7 +1,8 @@
 import cors from 'cors';
 import express from 'express';
-import jwt, { TokenExpiredError } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import multer from 'multer';
+const { TokenExpiredError } = jwt;
 export class apiModule {
     constructor() {
         this.server = null;
@@ -16,12 +17,46 @@ export class apiModule {
     }
 }
 export class apiError extends Error {
-    constructor({ code, error, data, errors, }) {
-        const message = error instanceof Error ? error.message : String(error) || '[Unknown error]';
+    constructor({ code, error, data, errors }) {
+        let message;
+        if (error === undefined || error === null) {
+            message = '[Unknown error]';
+        }
+        else if (typeof code === 'number' && typeof error === 'string') {
+            message = error;
+        }
+        else if (error && typeof error === 'object') {
+            if ('parent' in error && error.parent && typeof error.parent.message === 'string') {
+                message = error.parent.message;
+            }
+            else if ('message' in error && typeof error.message === 'string') {
+                message = error.message;
+            }
+            else if (typeof error === 'string') {
+                message = error;
+            }
+            else {
+                message = String(error) || '[Unknown error]';
+            }
+        }
+        else if (typeof error === 'string') {
+            message = error;
+        }
+        else {
+            message = String(error) || '[Unknown error]';
+        }
         super(message);
-        this.code = code;
-        this.data = data ?? null;
-        this.errors = errors ?? {};
+        this.error = message;
+        if (typeof code === 'number' && typeof error === 'string') {
+            this.code = code;
+            this.data = data !== undefined ? data : null;
+            this.errors = errors !== undefined ? errors : {};
+        }
+        else {
+            this.code = 500;
+            this.data = null;
+            this.errors = {};
+        }
         if (error instanceof Error && error.stack) {
             this.stack = error.stack;
         }
@@ -44,6 +79,24 @@ export class apiServer {
         this.middlewares();
         this.app.use('/api/v1', this.router_v1);
         // add_swagger_ui(this.app);
+    }
+    guess_exception_text(error, defmsg = 'Unkown Error') {
+        const msg = [];
+        if (typeof error === 'string') {
+            msg.push(error);
+        }
+        else {
+            if (error && typeof error.message === 'string') {
+                msg.push(error.message);
+            }
+            if (error && error.parent && typeof error.parent.message === 'string') {
+                msg.push(error.parent.message);
+            }
+        }
+        if (msg.length === 0) {
+            return defmsg;
+        }
+        return msg.join('/');
     }
     async get_api_key(token) {
         return null;
@@ -70,17 +123,6 @@ export class apiServer {
             console.log(`Server is running on http://${this.config.api_host}:${this.config.api_port}`);
         });
     }
-    exception_error(error) {
-        if (typeof error === 'string') {
-            return error;
-        }
-        else if (error instanceof Error) {
-            return error.message;
-        }
-        else {
-            return 'An unknown error occurred';
-        }
-    }
     async verifyJWT(token) {
         if (!this.config.jwt_secret) {
             return { tokendata: undefined, error: 'JWT authentication disabled; no jwt_secret set' };
@@ -100,7 +142,7 @@ export class apiServer {
                 return { tokendata: undefined, error: 'Refresh token expired' };
             }
             else {
-                return { tokendata: undefined, error: this.exception_error(error) + ' -> (token verification)' };
+                return { tokendata: undefined, error: this.guess_exception_text(error) + ' -> (token verification)' };
             }
         }
         return { tokendata: td, error: undefined };
@@ -167,6 +209,7 @@ export class apiServer {
         return async (req, res, next) => {
             try {
                 const apireq = (this.curreq = {
+                    server: this,
                     req,
                     res,
                     token: '',
@@ -178,21 +221,18 @@ export class apiServer {
                 res.status(code).json({ code, message, data });
             }
             catch (error) {
-                console.log(JSON.stringify(error, undefined, 2));
                 if (error instanceof apiError) {
                     res.status(error.code).json({
                         code: error.code,
-                        message: error.message,
+                        error: error.message,
                         data: error.data || null,
                         errors: error.errors || [],
                     });
                 }
                 else {
-                    console.log(this.exception_error(error));
                     res.status(500).json({
                         code: 500,
-                        message: 'Internal Server Error',
-                        error: this.exception_error(error),
+                        error: this.guess_exception_text(error),
                         errors: [],
                     });
                 }
