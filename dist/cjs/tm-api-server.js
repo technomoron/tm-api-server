@@ -117,10 +117,13 @@ class apiServer {
                 if (!origin) {
                     return callback(null, true);
                 }
-                if (this.config.origins && this.config.origins.length > 0 && this.config.origins.includes(origin)) {
-                    return callback(null, true);
+                if (this.config.origins && this.config.origins.length > 0) {
+                    if (this.config.origins.includes(origin)) {
+                        return callback(null, true);
+                    }
+                    return callback(new Error(`${origin} Not allowed by CORS`));
                 }
-                return callback(new Error(`${origin} Not allowed by CORS`));
+                return callback(null, true);
             },
             credentials: true,
         };

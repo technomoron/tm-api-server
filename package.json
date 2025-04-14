@@ -1,6 +1,6 @@
 {
 	"name": "tm-api-server",
-	"version": "1.0.8",
+	"version": "1.0.9",
 	"description": "Api Server Skeleton",
 	"main": "dist/cjs/tm-api-server.js",
 	"module": "dist/esm/tm-api-server.mjs",
@@ -17,7 +17,8 @@
 		"prepublishOnly": "npm run build",
 		"lint": "eslint --ext .js,.ts,.vue ./",
 		"lintfix": "eslint --fix --ext .js,.ts,.vue ./",
-		"format": "prettier --write \"**/*.{js,jsx,ts,tsx,vue,json,css,scss,md}\""
+		"format": "prettier --write \"**/*.{js,jsx,ts,tsx,vue,json,css,scss,md}\"",
+		"cleanbuild": "rm -rf ./dist/ && npm run lintfix && npm run format && npm run build"
 	},
 	"devDependencies": {
 		"@types/cors": "^2.8.17",
