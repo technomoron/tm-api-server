@@ -73,5 +73,7 @@ export declare class apiServer {
     private authenticate;
     private handle_request;
     add_routes(routes: apiRoute[]): void;
+    api<T extends apiModule<IapiServer>>(ApiModuleClass: new () => T): this;
+    dump_request(apireq: apiRequest): void;
 }
 export default apiServer;

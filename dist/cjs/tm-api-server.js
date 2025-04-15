@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.apiServer = exports.apiError = exports.apiModule = void 0;
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
@@ -112,6 +113,7 @@ class apiServer {
     async authorize(apireq, requiredClass) { }
     middlewares() {
         this.app.use(express_1.default.json());
+        this.app.use((0, cookie_parser_1.default)());
         const corsOptions = {
             origin: (origin, callback) => {
                 if (!origin) {
@@ -270,6 +272,22 @@ class apiServer {
                     throw new Error(`Unsupported method: ${route.method}`);
             }
         });
+    }
+    api(ApiModuleClass) {
+        const moduleInstance = new ApiModuleClass();
+        moduleInstance.init(this); // docServer should be a valid IapiServer.
+        return this;
+    }
+    dump_request(apireq) {
+        const req = apireq.req;
+        console.log('--- Incoming Request ---');
+        console.log('URL:', req.originalUrl);
+        console.log('Method:', req.method);
+        console.log('Query Params:', req.query);
+        console.log('Body Params:', req.body);
+        console.log('Cookies:', req.cookies);
+        console.log('Headers:', req.headers);
+        console.log('------------------------');
     }
 }
 exports.apiServer = apiServer;

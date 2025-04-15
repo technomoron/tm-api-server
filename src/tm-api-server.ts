@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Application, Request, Response, NextFunction, Router } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
@@ -174,6 +175,7 @@ export class apiServer {
 
 	private middlewares() {
 		this.app.use(express.json());
+		this.app.use(cookieParser());
 
 		const corsOptions = {
 			origin: (origin: any, callback: any) => {
@@ -337,6 +339,24 @@ export class apiServer {
 					throw new Error(`Unsupported method: ${route.method}`);
 			}
 		});
+	}
+
+	public api<T extends apiModule<IapiServer>>(ApiModuleClass: new () => T): this {
+		const moduleInstance = new ApiModuleClass();
+		moduleInstance.init(this); // docServer should be a valid IapiServer.
+		return this;
+	}
+
+	public dump_request(apireq: apiRequest) {
+		const req = apireq.req;
+		console.log('--- Incoming Request ---');
+		console.log('URL:', req.originalUrl);
+		console.log('Method:', req.method);
+		console.log('Query Params:', req.query);
+		console.log('Body Params:', req.body);
+		console.log('Cookies:', req.cookies);
+		console.log('Headers:', req.headers);
+		console.log('------------------------');
 	}
 }
 
