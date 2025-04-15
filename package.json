@@ -1,6 +1,6 @@
 {
 	"name": "tm-api-server",
-	"version": "1.0.10",
+	"version": "1.0.11",
 	"description": "Api Server Skeleton",
 	"main": "dist/cjs/tm-api-server.js",
 	"module": "dist/esm/tm-api-server.mjs",
@@ -21,6 +21,7 @@
 		"cleanbuild": "rm -rf ./dist/ && npm run lintfix && npm run format && npm run build"
 	},
 	"devDependencies": {
+		"@types/cookie-parser": "^1.4.8",
 		"@types/cors": "^2.8.17",
 		"@types/express": "^5.0.1",
 		"@types/jsonwebtoken": "^9.0.9",
@@ -39,6 +40,7 @@
 		"package.json"
 	],
 	"dependencies": {
+		"cookie-parser": "^1.4.7",
 		"cors": "^2.8.5",
 		"express": "^5.1.0",
 		"jsonwebtoken": "^9.0.2",

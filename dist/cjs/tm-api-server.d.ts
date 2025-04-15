@@ -38,17 +38,16 @@ export declare class apiModule<T extends IapiServer = IapiServer> {
     protected define_routes(): apiRoute[];
 }
 export interface apiErrorParams {
-    code: number;
-    error: any;
+    code?: number;
+    message?: any;
     data?: any;
     errors?: Record<string, string>;
 }
 export declare class apiError extends Error {
     code: number;
-    error: string;
     data: any;
     errors: Record<string, string>;
-    constructor({ code, error, data, errors }: apiErrorParams);
+    constructor({ code, message, data, errors }: apiErrorParams);
 }
 export interface apiServerConf {
     jwt_secret?: string;

@@ -61,57 +61,42 @@ export class apiModule<T extends IapiServer = IapiServer> {
 	}
 }
 
+function guess_exception_text(error: any, defmsg: string = 'Unknown Error'): string {
+	const msg: string[] = [];
+
+	if (typeof error === 'string' && error.trim() !== '') {
+		msg.push(error);
+	} else if (error && typeof error === 'object') {
+		if (typeof error.message === 'string' && error.message.trim() !== '') {
+			msg.push(error.message);
+		}
+		if (error.parent && typeof error.parent.message === 'string' && error.parent.message.trim() !== '') {
+			msg.push(error.parent.message);
+		}
+	}
+
+	return msg.length > 0 ? msg.join(' / ') : defmsg;
+}
+
 export interface apiErrorParams {
-	code: number;
-	error: any;
+	code?: number;
+	message?: any;
 	data?: any;
 	errors?: Record<string, string>;
 }
 
 export class apiError extends Error {
 	public code: number;
-	public error: string;
 	public data: any;
 	public errors: Record<string, string>;
 
-	constructor({ code, error, data, errors }: apiErrorParams) {
-		let message: string;
-		if (error === undefined || error === null) {
-			message = '[Unknown error]';
-		} else if (typeof code === 'number' && typeof error === 'string') {
-			message = error;
-		} else if (error && typeof error === 'object') {
-			if ('parent' in error && error.parent && typeof error.parent.message === 'string') {
-				message = error.parent.message;
-			} else if ('message' in error && typeof error.message === 'string') {
-				message = error.message;
-			} else if (typeof error === 'string') {
-				message = error;
-			} else {
-				message = String(error) || '[Unknown error]';
-			}
-		} else if (typeof error === 'string') {
-			message = error;
-		} else {
-			message = String(error) || '[Unknown error]';
-		}
-
-		super(message);
-
-		this.error = message;
-		if (typeof code === 'number' && typeof error === 'string') {
-			this.code = code;
-			this.data = data !== undefined ? data : null;
-			this.errors = errors !== undefined ? errors : {};
-		} else {
-			this.code = 500;
-			this.data = null;
-			this.errors = {};
-		}
-
-		if (error instanceof Error && error.stack) {
-			this.stack = error.stack;
-		}
+	constructor({ code, message, data, errors }: apiErrorParams) {
+		const msg = guess_exception_text(message, '[Unknown error (null/undefined)]');
+		super(msg);
+		this.message = msg;
+		this.code = typeof code === 'number' ? code : 500;
+		this.data = data !== undefined ? data : null;
+		this.errors = errors !== undefined ? errors : {};
 	}
 }
 
@@ -149,22 +134,7 @@ export class apiServer {
 	}
 
 	public guess_exception_text(error: any, defmsg: string = 'Unkown Error') {
-		const msg = [];
-
-		if (typeof error === 'string') {
-			msg.push(error);
-		} else {
-			if (error && typeof error.message === 'string') {
-				msg.push(error.message);
-			}
-			if (error && error.parent && typeof error.parent.message === 'string') {
-				msg.push(error.parent.message);
-			}
-		}
-		if (msg.length === 0) {
-			return defmsg;
-		}
-		return msg.join('/');
+		return guess_exception_text(error, defmsg);
 	}
 
 	protected async get_api_key(token: string): Promise<apiKey | null> {
@@ -212,10 +182,10 @@ export class apiServer {
 		try {
 			td = jwt.verify(token, this.config.jwt_secret) as apiTokenData;
 			if (!td) {
-				throw new apiError({ code: 500, error: 'Unable to verify refresh token' });
+				throw new apiError({ code: 500, message: 'Unable to verify refresh token' });
 			}
 			if (!td.uid) {
-				throw new apiError({ code: 500, error: 'Missing/bad userid in token' });
+				throw new apiError({ code: 500, message: 'Missing/bad userid in token' });
 			}
 		} catch (error) {
 			if (error instanceof TokenExpiredError) {
@@ -233,13 +203,11 @@ export class apiServer {
 		}
 		let token: string | null = null;
 		const authHeader = apireq.req.headers.authorization;
-		if (authHeader) {
-			const match = authHeader.match(/^Bearer (.+)$/);
-			if (match) {
-				token = match[1];
-			} else if (authType === 'yes') {
-				throw new apiError({ code: 500, error: 'Authorization header must be a Bearer token' });
-			}
+
+		if (authHeader?.startsWith('Bearer ')) {
+			token = authHeader.slice(7).trim();
+		} else if (authType === 'yes' && !authHeader) {
+			throw new apiError({ code: 401, message: 'Authorization header is missing or invalid' });
 		}
 		if (token) {
 			const m = token.match(/^apikey-(.+)$/);
@@ -255,7 +223,7 @@ export class apiServer {
 						exp: 0,
 					};
 				} else {
-					throw new apiError({ code: 401, error: 'Invalid API Key' });
+					throw new apiError({ code: 401, message: 'Invalid API Key' });
 				}
 			}
 		}
@@ -265,7 +233,7 @@ export class apiServer {
 			if (access) {
 				token = access;
 			} else if (authType === 'yes') {
-				throw new apiError({ code: 401, error: 'Authorization token is required (Bearer/cookie)' });
+				throw new apiError({ code: 401, message: 'Authorization token is required (Bearer/cookie)' });
 			}
 		}
 
@@ -273,12 +241,12 @@ export class apiServer {
 			if (authType === 'maybe') {
 				return null;
 			} else {
-				throw new apiError({ code: 401, error: 'Unauthorized Access - requires authentication' });
+				throw new apiError({ code: 401, message: 'Unauthorized Access - requires authentication' });
 			}
 		}
 		const { tokendata, error } = await this.verifyJWT(token!);
 		if (!tokendata) {
-			throw new apiError({ code: 401, error: 'Unathorized Access - ' + error });
+			throw new apiError({ code: 401, message: 'Unathorized Access - ' + error });
 		}
 
 		apireq.token = token;
@@ -304,14 +272,15 @@ export class apiServer {
 				if (error instanceof apiError) {
 					res.status(error.code).json({
 						code: error.code,
-						error: error.message,
+						message: error.message,
 						data: error.data || null,
 						errors: error.errors || [],
 					});
 				} else {
 					res.status(500).json({
 						code: 500,
-						error: this.guess_exception_text(error),
+						message: this.guess_exception_text(error),
+						data: null,
 						errors: [],
 					});
 				}
